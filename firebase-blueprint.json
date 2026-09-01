@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "users": {
+      "fields": {
+        "uid": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "email": { "type": "string", "required": true },
+        "role": { "type": "string", "required": true, "description": "SUPER_ADMIN, ADMIN, STAFF, or STUDENT" },
+        "departmentId": { "type": "string", "required": false },
+        "assignedStage": { "type": "string", "required": false },
+        "active": { "type": "boolean", "required": true },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "students": {
+      "fields": {
+        "uid": { "type": "string", "required": false },
+        "name": { "type": "string", "required": true },
+        "matricNumber": { "type": "string", "required": true },
+        "email": { "type": "string", "required": true },
+        "departmentId": { "type": "string", "required": true },
+        "departmentName": { "type": "string", "required": true },
+        "level": { "type": "string", "required": true },
+        "session": { "type": "string", "required": true },
+        "clearanceStatus": { "type": "string", "required": true, "description": "in_progress, completed, awaiting_review" },
+        "currentStage": { "type": "string", "required": true },
+        "progressPercent": { "type": "number", "required": true },
+        "stagesStatus": { "type": "map", "required": true },
+        "active": { "type": "boolean", "required": true },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "staff": {
+      "fields": {
+        "uid": { "type": "string", "required": false },
+        "name": { "type": "string", "required": true },
+        "email": { "type": "string", "required": true },
+        "role": { "type": "string", "required": true },
+        "departmentId": { "type": "string", "required": true },
+        "departmentName": { "type": "string", "required": true },
+        "assignedStage": { "type": "string", "required": true },
+        "active": { "type": "boolean", "required": true },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "clearanceStages": {
+      "fields": {
+        "name": { "type": "string", "required": true },
+        "order": { "type": "number", "required": true },
+        "active": { "type": "boolean", "required": true },
+        "description": { "type": "string", "required": true }
+      }
+    },
+    "requirements": {
+      "fields": {
+        "stageId": { "type": "string", "required": true },
+        "name": { "type": "string", "required": true },
+        "description": { "type": "string", "required": false },
+        "required": { "type": "boolean", "required": true },
+        "allowedFileTypes": { "type": "list", "required": true },
+        "maxFileSize": { "type": "number", "required": true },
+        "active": { "type": "boolean", "required": true }
+      }
+    },
+    "submissions": {
+      "fields": {
+        "studentId": { "type": "string", "required": true },
+        "studentName": { "type": "string", "required": true },
+        "matricNumber": { "type": "string", "required": true },
+        "departmentName": { "type": "string", "required": true },
+        "requirementId": { "type": "string", "required": true },
+        "requirementName": { "type": "string", "required": true },
+        "stageId": { "type": "string", "required": true },
+        "stageName": { "type": "string", "required": true },
+        "fileUrl": { "type": "string", "required": true },
+        "fileName": { "type": "string", "required": true },
+        "fileType": { "type": "string", "required": true },
+        "fileSize": { "type": "number", "required": true },
+        "status": { "type": "string", "required": true, "description": "pending, approved, rejected" },
+        "submittedAt": { "type": "timestamp", "required": true },
+        "reviewedAt": { "type": "timestamp", "required": false },
+        "reviewedBy": { "type": "string", "required": false },
+        "reviewerName": { "type": "string", "required": false },
+        "rejectionReason": { "type": "string", "required": false },
+        "reviewComment": { "type": "string", "required": false }
+      }
+    },
+    "notifications": {
+      "fields": {
+        "userId": { "type": "string", "required": false },
+        "studentId": { "type": "string", "required": true },
+        "title": { "type": "string", "required": true },
+        "message": { "type": "string", "required": true },
+        "type": { "type": "string", "required": true },
+        "read": { "type": "boolean", "required": true },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "auditLogs": {
+      "fields": {
+        "actorId": { "type": "string", "required": true },
+        "actorName": { "type": "string", "required": true },
+        "actorRole": { "type": "string", "required": true },
+        "action": { "type": "string", "required": true },
+        "targetType": { "type": "string", "required": true },
+        "targetId": { "type": "string", "required": true },
+        "metadata": { "type": "map", "required": false },
+        "createdAt": { "type": "timestamp", "required": true }
+      }
+    },
+    "systemSettings": {
+      "fields": {
+        "institutionName": { "type": "string", "required": true },
+        "academicSession": { "type": "string", "required": true },
+        "clearanceSystemStatus": { "type": "string", "required": true }
+      }
+    }
+  }
+}
