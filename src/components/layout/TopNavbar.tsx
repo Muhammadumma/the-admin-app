@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { INITIAL_STAFF } from '../../services/seedData';
 import { StatusBadge } from '../common/StatusBadge';
 
 interface TopNavbarProps {
@@ -29,7 +28,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   navigate,
 }) => {
   const { currentUser, switchAccount } = useAuth();
-  const { notifications, markNotificationRead, students } = useData();
+  const { notifications, markNotificationRead, students, staffList } = useData();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -166,7 +165,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                 Switch Reviewer Persona (Demo Testing)
               </div>
               <div className="max-h-64 overflow-y-auto">
-                {INITIAL_STAFF.map((staff) => {
+                {staffList.map((staff) => {
                   const isSelected = currentUser?.email === staff.email;
                   return (
                     <button

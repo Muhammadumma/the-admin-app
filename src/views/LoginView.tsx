@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { INITIAL_STAFF } from '../services/seedData';
 import { StatusBadge } from '../components/common/StatusBadge';
 
 interface LoginViewProps {
@@ -28,7 +27,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ navigate }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const displayStaff = staffList && staffList.length > 0 ? staffList : INITIAL_STAFF;
+  const displayStaff = staffList;
 
   const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault();

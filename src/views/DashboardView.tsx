@@ -270,68 +270,86 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ navigate }) => {
           </button>
         </div>
 
-        {/* Submissions Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50/50 text-slate-400 uppercase text-[10px] font-bold tracking-widest border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4">Student</th>
-                <th className="px-6 py-4">Matric Number</th>
-                <th className="px-6 py-4">Department</th>
-                <th className="px-6 py-4 text-center">Stage</th>
-                <th className="px-6 py-4">Requirement</th>
-                <th className="px-6 py-4">Submitted</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100/80 font-medium text-slate-700">
-              {recentSubmissions.map((sub) => (
-                <tr
-                  key={sub.id}
-                  className="hover:bg-blue-50/30 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/admin/clearance/${sub.id}`)}
-                >
-                  <td className="px-6 py-4">
-                    <span className="font-semibold text-slate-900">{sub.studentName}</span>
-                    <p className="text-xs text-slate-400 uppercase">{sub.matricNumber}</p>
-                  </td>
-                  <td className="px-6 py-4 font-mono text-blue-700 font-semibold">
-                    {sub.matricNumber}
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">
-                    {sub.departmentName}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="text-xs font-bold bg-slate-100/80 px-2.5 py-1 rounded-md uppercase text-slate-800">
-                      {sub.stageName}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-700 truncate max-w-[180px]">
-                    {sub.requirementName}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500 whitespace-nowrap">
-                    {new Date(sub.submittedAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4">
-                    <StatusBadge status={sub.status} size="sm" />
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/admin/clearance/${sub.id}`);
-                      }}
-                      className="text-blue-600 font-bold text-xs hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-lg border border-blue-600/20 transition-all uppercase cursor-pointer"
-                    >
-                      {sub.status === 'pending' ? 'Review' : 'View'}
-                    </button>
-                  </td>
+        {/* Submissions Table / Empty State */}
+        {recentSubmissions.length === 0 ? (
+          <div className="p-12 text-center text-slate-500">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+              <FileCheck2 className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900">No Student Submissions in Queue</h3>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              Mock test data has been wiped. When students upload clearance documents (&lt;1MB), their submissions will appear here in real-time.
+            </p>
+            <button
+              onClick={() => navigate('/admin/clearance')}
+              className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <span>Go to Clearance Review Queue</span>
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/50 text-slate-400 uppercase text-[10px] font-bold tracking-widest border-b border-slate-100">
+                <tr>
+                  <th className="px-6 py-4">Student</th>
+                  <th className="px-6 py-4">Matric Number</th>
+                  <th className="px-6 py-4">Department</th>
+                  <th className="px-6 py-4 text-center">Stage</th>
+                  <th className="px-6 py-4">Requirement</th>
+                  <th className="px-6 py-4">Submitted</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-right">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100/80 font-medium text-slate-700">
+                {recentSubmissions.map((sub) => (
+                  <tr
+                    key={sub.id}
+                    className="hover:bg-blue-50/30 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/admin/clearance/${sub.id}`)}
+                  >
+                    <td className="px-6 py-4">
+                      <span className="font-semibold text-slate-900">{sub.studentName}</span>
+                      <p className="text-xs text-slate-400 uppercase">{sub.matricNumber}</p>
+                    </td>
+                    <td className="px-6 py-4 font-mono text-blue-700 font-semibold">
+                      {sub.matricNumber}
+                    </td>
+                    <td className="px-6 py-4 text-slate-600">
+                      {sub.departmentName}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="text-xs font-bold bg-slate-100/80 px-2.5 py-1 rounded-md uppercase text-slate-800">
+                        {sub.stageName}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-700 truncate max-w-[180px]">
+                      {sub.requirementName}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500 whitespace-nowrap">
+                      {new Date(sub.submittedAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4">
+                      <StatusBadge status={sub.status} size="sm" />
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/admin/clearance/${sub.id}`);
+                        }}
+                        className="text-blue-600 font-bold text-xs hover:bg-blue-600 hover:text-white px-3 py-1.5 rounded-lg border border-blue-600/20 transition-all uppercase cursor-pointer"
+                      >
+                        {sub.status === 'pending' ? 'Review' : 'View'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

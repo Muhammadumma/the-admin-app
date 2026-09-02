@@ -67,9 +67,10 @@ export const DocumentReviewView: React.FC<DocumentReviewViewProps> = ({
     if (!currentUser) return;
     setIsActionLoading(true);
     try {
-      await approveSubmission(submission.id, currentUser.id, currentUser.name, comment);
+      const reviewerId = currentUser.uid || (currentUser as any).id || 'ADMIN';
+      await approveSubmission(submission.id, reviewerId, currentUser.name, comment);
       setIsApproveOpen(false);
-      setActionSuccessMsg('Document successfully approved and student clearance updated!');
+      setActionSuccessMsg('Document successfully approved and student clearance updated in database!');
       setTimeout(() => setActionSuccessMsg(null), 5000);
     } catch (err) {
       console.error(err);
@@ -82,9 +83,10 @@ export const DocumentReviewView: React.FC<DocumentReviewViewProps> = ({
     if (!currentUser) return;
     setIsActionLoading(true);
     try {
-      await rejectSubmission(submission.id, currentUser.id, currentUser.name, reason, comment);
+      const reviewerId = currentUser.uid || (currentUser as any).id || 'ADMIN';
+      await rejectSubmission(submission.id, reviewerId, currentUser.name, reason, comment);
       setIsRejectOpen(false);
-      setActionSuccessMsg('Document marked as rejected and feedback sent to student.');
+      setActionSuccessMsg('Document marked as rejected and feedback sent to student in database.');
       setTimeout(() => setActionSuccessMsg(null), 5000);
     } catch (err) {
       console.error(err);
@@ -249,7 +251,27 @@ export const DocumentReviewView: React.FC<DocumentReviewViewProps> = ({
 
           {/* Review Action Buttons */}
           <div className="bg-white/80 backdrop-blur-md rounded-2xl p-6 border border-white/60 shadow-sm space-y-3">
-            {!canReview ? (
+            {submission.status === 'approved' ? (
+              <div className="p-4 bg-emerald-50/80 rounded-xl border border-emerald-200 text-emerald-950 text-xs flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <div>
+                  <p className="font-bold text-sm text-emerald-900">Clearance Finalized &amp; Endorsed</p>
+                  <p className="text-emerald-700 mt-0.5">
+                    This document has been verified and approved by {submission.reviewerName || 'the Clearance Officer'}. No further actions can be taken on this finalized submission.
+                  </p>
+                </div>
+              </div>
+            ) : submission.status === 'rejected' ? (
+              <div className="p-4 bg-rose-50/80 rounded-xl border border-rose-200 text-rose-950 text-xs flex items-center gap-3">
+                <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                <div>
+                  <p className="font-bold text-sm text-rose-900">Document Rejected &amp; Returned</p>
+                  <p className="text-rose-700 mt-0.5">
+                    This submission was returned to the student for correction. The student must re-upload before this requirement can be audited again.
+                  </p>
+                </div>
+              </div>
+            ) : !canReview ? (
               <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-900 text-xs flex items-center gap-2">
                 <Lock className="w-4 h-4 text-amber-700 shrink-0" />
                 <span>

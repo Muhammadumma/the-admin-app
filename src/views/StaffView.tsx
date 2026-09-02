@@ -13,7 +13,6 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { StaffRecord, UserRole, ClearanceStageKey } from '../types';
-import { INITIAL_STAGES } from '../services/seedData';
 import { StatusBadge } from '../components/common/StatusBadge';
 
 interface StaffViewProps {
@@ -21,8 +20,8 @@ interface StaffViewProps {
 }
 
 export const StaffView: React.FC<StaffViewProps> = () => {
-  const { isSuperAdmin } = useAuth();
-  const { staffList, addStaffUser, toggleStaffStatus } = useData();
+  const { currentUser, isSuperAdmin } = useAuth();
+  const { staffList, stages, addStaffUser, toggleStaffStatus } = useData();
 
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -53,14 +52,20 @@ export const StaffView: React.FC<StaffViewProps> = () => {
     setError('');
 
     try {
-      await addStaffUser({
-        name,
-        email,
-        role,
-        assignedStage: role === 'STAFF' ? assignedStage : undefined,
-        departmentName,
-        active: true,
-      });
+      await addStaffUser(
+        {
+          name,
+          email,
+          role,
+          assignedStage: role === 'STAFF' ? assignedStage : ('admission' as ClearanceStageKey),
+          departmentId: 'DEPT_' + departmentName.replace(/\s+/g, '_').toUpperCase(),
+          departmentName,
+          active: true,
+        },
+        currentUser?.uid || 'ADMIN',
+        currentUser?.name || 'Administrator',
+        currentUser?.role || 'SUPER_ADMIN'
+      );
       setIsAddModalOpen(false);
       setName('');
       setEmail('');
@@ -256,7 +261,7 @@ export const StaffView: React.FC<StaffViewProps> = () => {
                     onChange={(e) => setAssignedStage(e.target.value as ClearanceStageKey)}
                     className="w-full px-3 py-2 bg-white/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white outline-none capitalize disabled:opacity-50"
                   >
-                    {INITIAL_STAGES.map((st) => (
+                    {stages.map((st) => (
                       <option key={st.id} value={st.id}>
                         {st.name}
                       </option>

@@ -144,7 +144,7 @@ export const GeminiAssistantModal: React.FC<GeminiAssistantModalProps> = ({
               <h3 className="text-sm font-bold flex items-center gap-2">
                 CLEARPASS AI Administrative Assistant
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/30 text-blue-300 font-mono font-bold border border-blue-500/30">
-                  Gemini 2.5
+                  AI Intelligence Engine
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400">

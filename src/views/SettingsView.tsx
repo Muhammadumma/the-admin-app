@@ -14,29 +14,76 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 
 export const SettingsView: React.FC = () => {
-  const { isSuperAdmin } = useAuth();
-  const { resetToSeedData } = useData();
+  const { currentUser, isSuperAdmin } = useAuth();
+  const { settings, updateSettings, wipeAllSubmissions, resetToDemoData } = useData();
 
-  const [institutionName, setInstitutionName] = useState('Jigawa State Polytechnic, Dutse');
-  const [session, setSession] = useState('2025/2026 Academic Session');
-  const [clearanceActive, setClearanceActive] = useState(true);
+  const [institutionName, setInstitutionName] = useState(
+    settings.institutionName || 'Jigawa State Polytechnic, Dutse'
+  );
+  const [session, setSession] = useState(
+    settings.academicSession || '2025/2026 Academic Session'
+  );
+  const [clearanceActive, setClearanceActive] = useState(
+    settings.clearanceSystemStatus !== 'PAUSED'
+  );
   const [isSaved, setIsSaved] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  // Sync state if settings update from Firestore
+  React.useEffect(() => {
+    if (settings.institutionName) setInstitutionName(settings.institutionName);
+    if (settings.academicSession) setSession(settings.academicSession);
+    setClearanceActive(settings.clearanceSystemStatus !== 'PAUSED');
+  }, [settings]);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    await updateSettings(
+      {
+        institutionName,
+        academicSession: session,
+        clearanceSystemStatus: clearanceActive ? 'ACTIVE' : 'PAUSED',
+      },
+      currentUser?.uid || 'ADMIN',
+      currentUser?.name || 'Administrator',
+      currentUser?.role || 'SUPER_ADMIN'
+    );
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
   };
 
-  const handleResetData = () => {
-    if (window.confirm('Reset all demo clearance data to initial state? Current approvals and submissions will be refreshed.')) {
+  const handleWipeSubmissions = async () => {
+    if (
+      window.confirm(
+        'Wipe all mock/test submissions from the Firestore database? Only real, student-uploaded documents will be displayed going forward.'
+      )
+    ) {
+      setIsWiping(true);
+      await wipeAllSubmissions(
+        currentUser?.uid || 'ADMIN',
+        currentUser?.name || 'Administrator',
+        currentUser?.role || 'SUPER_ADMIN'
+      );
+      setIsWiping(false);
+      alert('All mock submissions have been successfully wiped from Firestore.');
+    }
+  };
+
+  const handleResetData = async () => {
+    if (
+      window.confirm(
+        'Reset all demo clearance data to initial state? Current approvals and submissions will be refreshed in Firestore.'
+      )
+    ) {
       setIsResetting(true);
-      resetToSeedData();
-      setTimeout(() => {
-        setIsResetting(false);
-        alert('Clearance data reset to fresh demonstration seed state.');
-      }, 500);
+      await resetToDemoData(
+        currentUser?.uid || 'ADMIN',
+        currentUser?.name || 'Administrator',
+        currentUser?.role || 'SUPER_ADMIN'
+      );
+      setIsResetting(false);
+      alert('Clearance data reset to fresh demonstration seed state in Firestore.');
     }
   };
 
@@ -128,27 +175,27 @@ export const SettingsView: React.FC = () => {
         </div>
       </form>
 
-      {/* Demo State Reset Utility */}
+      {/* Wipe Mock Submissions Utility */}
       <div className="bg-white/80 backdrop-blur-md rounded-2xl p-6 border border-white/60 shadow-sm space-y-4">
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Database className="w-4 h-4 text-slate-600" />
-              Demo Data Reset Utility
+              <Database className="w-4 h-4 text-rose-600" />
+              Purge Mock Submissions (Live Production Clean)
             </h3>
             <p className="text-xs text-slate-500 mt-1 max-w-xl">
-              Restore the original test dataset containing student records across all 8 stages, pending submissions, and audit logs.
+              Permanently delete mock test submissions from the database so only actual student uploads are displayed in the review queue and dashboard.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={handleResetData}
-            disabled={isResetting}
-            className="px-4 py-2 bg-white/70 hover:bg-rose-50 hover:text-rose-700 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition flex items-center gap-2 cursor-pointer shrink-0"
+            onClick={handleWipeSubmissions}
+            disabled={isWiping}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 cursor-pointer shrink-0 shadow-sm"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
-            <span>Reset Demo Data</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isWiping ? 'animate-spin' : ''}`} />
+            <span>{isWiping ? 'Wiping DB...' : 'Wipe Mock Data'}</span>
           </button>
         </div>
       </div>

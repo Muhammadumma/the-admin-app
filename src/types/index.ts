@@ -2,13 +2,46 @@ export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | 'STUDENT';
 
 export type ClearanceStageKey =
   | 'admission'
-  | 'library'
   | 'faculty'
   | 'bursary'
+  | 'library'
   | 'sports'
-  | 'accommodation'
   | 'student_affairs'
+  | 'accommodation'
   | 'graduation';
+
+export const STAGE_ORDER: ClearanceStageKey[] = [
+  'admission',
+  'faculty',
+  'bursary',
+  'library',
+  'sports',
+  'student_affairs',
+  'accommodation',
+  'graduation',
+];
+
+export const STAGE_MAPPING_NUMERICAL: Record<ClearanceStageKey, number> = {
+  admission: 1,
+  faculty: 2,
+  bursary: 3,
+  library: 4,
+  sports: 5,
+  student_affairs: 6,
+  accommodation: 7,
+  graduation: 8,
+};
+
+export const STAGE_MAPPING_STRING: Record<number, ClearanceStageKey> = {
+  1: 'admission',
+  2: 'faculty',
+  3: 'bursary',
+  4: 'library',
+  5: 'sports',
+  6: 'student_affairs',
+  7: 'accommodation',
+  8: 'graduation',
+};
 
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
 export type ClearanceOverallStatus = 'not_started' | 'in_progress' | 'awaiting_review' | 'completed';
@@ -132,6 +165,7 @@ export interface AuditLogRecord {
     | 'STAFF_CREATED'
     | 'STAFF_UPDATED'
     | 'STAFF_DEACTIVATED'
+    | 'DOCUMENT_SUBMITTED'
     | 'DOCUMENT_APPROVED'
     | 'DOCUMENT_REJECTED'
     | 'REQUIREMENT_CREATED'

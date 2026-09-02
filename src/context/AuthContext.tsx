@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile, UserRole, ClearanceStageKey, StaffRecord } from '../types';
-import { INITIAL_STAFF } from '../services/seedData';
 import { db, auth } from '../lib/firebase';
 import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
@@ -42,21 +41,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (stored) {
           setCurrentUser(JSON.parse(stored));
         } else {
-          // Default initial session as Super Admin for instantaneous admin dashboard access
-          const defaultAdmin = INITIAL_STAFF[0];
-          const defaultProfile: UserProfile = {
-            uid: defaultAdmin.id,
-            name: defaultAdmin.name,
-            email: defaultAdmin.email,
-            role: defaultAdmin.role,
-            departmentId: defaultAdmin.departmentId,
-            departmentName: defaultAdmin.departmentName,
-            assignedStage: defaultAdmin.assignedStage,
-            active: defaultAdmin.active,
-            createdAt: defaultAdmin.createdAt,
-          };
-          setCurrentUser(defaultProfile);
-          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(defaultProfile));
+          // Fetch the first active admin from Firestore
+          try {
+            const staffSnap = await getDocs(collection(db, 'staff'));
+            if (!staffSnap.empty) {
+              const staffList = staffSnap.docs.map((d) => d.data() as StaffRecord);
+              const firstAdmin = staffList.find((s) => s.role === 'SUPER_ADMIN') || staffList[0];
+              if (firstAdmin) {
+                const profile: UserProfile = {
+                  uid: firstAdmin.id,
+                  name: firstAdmin.name,
+                  email: firstAdmin.email,
+                  role: firstAdmin.role,
+                  departmentId: firstAdmin.departmentId,
+                  departmentName: firstAdmin.departmentName,
+                  assignedStage: firstAdmin.assignedStage,
+                  active: firstAdmin.active,
+                  createdAt: firstAdmin.createdAt,
+                };
+                setCurrentUser(profile);
+                localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(profile));
+              }
+            }
+          } catch (err) {
+            console.warn('Firestore initial auth lookup error:', err);
+          }
         }
       } catch (e) {
         console.warn('Auth restore warning:', e);
@@ -91,13 +100,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       } catch (e) {
         console.warn('Firestore staff query fallback:', e);
-      }
-
-      // Fallback to initial staff
-      if (!matchedStaff) {
-        matchedStaff = INITIAL_STAFF.find(
-          (s) => s.email.toLowerCase() === email.trim().toLowerCase()
-        );
       }
 
       const profile: UserProfile = matchedStaff
@@ -151,10 +153,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           staff = staffDoc.data() as StaffRecord;
         }
       } catch (e) {}
-
-      if (!staff) {
-        staff = INITIAL_STAFF.find((s) => s.id === staffId);
-      }
 
       if (staff) {
         const profile: UserProfile = {

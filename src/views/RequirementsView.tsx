@@ -12,12 +12,11 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { ClearanceStageKey, Requirement } from '../types';
-import { INITIAL_STAGES } from '../services/seedData';
 import { StatusBadge } from '../components/common/StatusBadge';
 
 export const RequirementsView: React.FC = () => {
-  const { isSuperAdmin } = useAuth();
-  const { requirements, setRequirements, stages } = useData();
+  const { currentUser, isSuperAdmin } = useAuth();
+  const { requirements, stages, addRequirement, toggleRequirementActive } = useData();
 
   const [selectedStageId, setSelectedStageId] = useState<ClearanceStageKey>('admission');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -30,32 +29,38 @@ export const RequirementsView: React.FC = () => {
   const [fileFormats, setFileFormats] = useState('PDF, JPG, PNG');
 
   const stageRequirements = requirements.filter((r) => r.stageId === selectedStageId);
-  const selectedStage = INITIAL_STAGES.find((s) => s.id === selectedStageId);
+  const selectedStage = stages.find((s) => s.id === selectedStageId);
 
-  const handleAddRequirement = (e: React.FormEvent) => {
+  const handleAddRequirement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    const newReq: Requirement = {
-      id: `req_${Date.now()}`,
-      stageId: selectedStageId,
-      name,
-      description,
-      required,
-      allowedFileTypes: fileFormats.split(',').map((f) => f.trim().toLowerCase()),
-      maxFileSize: maxFileSizeMB,
-      active: true,
-    };
+    await addRequirement(
+      {
+        stageId: selectedStageId,
+        name,
+        description,
+        required,
+        allowedFileTypes: fileFormats.split(',').map((f) => f.trim().toLowerCase()),
+        maxFileSize: maxFileSizeMB,
+        active: true,
+      },
+      currentUser?.uid || 'ADMIN',
+      currentUser?.name || 'Administrator',
+      currentUser?.role || 'SUPER_ADMIN'
+    );
 
-    setRequirements((prev) => [...prev, newReq]);
     setIsAddModalOpen(false);
     setName('');
     setDescription('');
   };
 
-  const toggleReqActive = (reqId: string) => {
-    setRequirements((prev) =>
-      prev.map((r) => (r.id === reqId ? { ...r, active: !r.active } : r))
+  const toggleReqActive = async (reqId: string) => {
+    await toggleRequirementActive(
+      reqId,
+      currentUser?.uid || 'ADMIN',
+      currentUser?.name || 'Administrator',
+      currentUser?.role || 'SUPER_ADMIN'
     );
   };
 
@@ -89,7 +94,7 @@ export const RequirementsView: React.FC = () => {
 
       {/* Stage Selector Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-        {INITIAL_STAGES.map((st) => {
+        {stages.map((st) => {
           const isSelected = selectedStageId === st.id;
           const count = requirements.filter((r) => r.stageId === st.id).length;
 

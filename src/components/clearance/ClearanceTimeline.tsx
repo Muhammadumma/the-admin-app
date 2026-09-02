@@ -7,8 +7,8 @@ import {
   ChevronRight,
   GraduationCap,
 } from 'lucide-react';
-import { ClearanceStageKey, StageReviewStatus } from '../../types';
-import { INITIAL_STAGES } from '../../services/seedData';
+import { ClearanceStage, ClearanceStageKey, StageReviewStatus } from '../../types';
+import { useData } from '../../context/DataContext';
 import { StatusBadge } from '../common/StatusBadge';
 
 interface ClearanceTimelineProps {
@@ -16,6 +16,7 @@ interface ClearanceTimelineProps {
   selectedStage?: ClearanceStageKey;
   onSelectStage?: (stageId: ClearanceStageKey) => void;
   interactive?: boolean;
+  stages?: ClearanceStage[];
 }
 
 export const ClearanceTimeline: React.FC<ClearanceTimelineProps> = ({
@@ -23,7 +24,11 @@ export const ClearanceTimeline: React.FC<ClearanceTimelineProps> = ({
   selectedStage,
   onSelectStage,
   interactive = true,
+  stages: customStages,
 }) => {
+  const { stages: liveStages } = useData();
+  const stagesToDisplay = customStages || liveStages;
+
   const getStatusIcon = (status: StageReviewStatus) => {
     switch (status) {
       case 'approved':
@@ -39,7 +44,7 @@ export const ClearanceTimeline: React.FC<ClearanceTimelineProps> = ({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-      {INITIAL_STAGES.map((stage, index) => {
+      {stagesToDisplay.map((stage, index) => {
         const status = stagesStatus[stage.id] || 'not_started';
         const isSelected = selectedStage === stage.id;
 

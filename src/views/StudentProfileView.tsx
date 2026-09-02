@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { ClearanceStageKey, StageReviewStatus } from '../types';
-import { INITIAL_STAGES } from '../services/seedData';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { ProgressBar } from '../components/common/ProgressBar';
 import { ClearanceTimeline } from '../components/clearance/ClearanceTimeline';
@@ -31,7 +30,7 @@ export const StudentProfileView: React.FC<StudentProfileViewProps> = ({
   studentId,
   navigate,
 }) => {
-  const { students, submissions, requirements } = useData();
+  const { students, submissions, requirements, stages } = useData();
 
   const student = students.find((s) => s.id === studentId);
 
@@ -62,7 +61,7 @@ export const StudentProfileView: React.FC<StudentProfileViewProps> = ({
     (st) => st === 'approved'
   ).length;
 
-  const selectedStage = INITIAL_STAGES.find((st) => st.id === selectedStageId);
+  const selectedStage = stages.find((st) => st.id === selectedStageId);
   const stageRequirements = requirements.filter((r) => r.stageId === selectedStageId);
   const studentSubmissionsForStage = submissions.filter(
     (s) => s.studentId === student.id && s.stageId === selectedStageId
@@ -221,8 +220,8 @@ export const StudentProfileView: React.FC<StudentProfileViewProps> = ({
                         <div className="flex items-center gap-3 text-right">
                           <div>
                             <StatusBadge status={sub.status} size="sm" />
-                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                              {new Date(sub.submittedAt).toLocaleDateString()}
+                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              {Math.round(sub.fileSize > 1000 ? sub.fileSize / 1024 : sub.fileSize)} KB &bull; {new Date(sub.submittedAt).toLocaleDateString()}
                             </p>
                           </div>
 

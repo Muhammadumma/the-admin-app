@@ -1,12 +1,12 @@
 {
-  "projectId": "summer-script-tvk22",
-  "appId": "1:584064029260:web:89a70895588c01e0b81ae9",
-  "apiKey": "AIzaSyCw8fkNQYX-C8aTRHB7y8annB-Osz847v0",
-  "authDomain": "summer-script-tvk22.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-clearpassadmin-5d8be082-fb26-4e8d-bc82-6be90d446b44",
-  "storageBucket": "summer-script-tvk22.firebasestorage.app",
-  "messagingSenderId": "584064029260",
-  "measurementId": "",
-  "oAuthClientId": "584064029260-nuti2b7uespcm54rv71knstffleg0eek.apps.googleusercontent.com",
+  "projectId": "project-e281d42c-a391-42b2-97b",
+  "appId": "1:228582991023:web:aa3648614bfca9cbdfe05a",
+  "apiKey": "AIzaSyDeqA1ZfMwDnKAtIf-nXbFcU52JZkHhAKY",
+  "authDomain": "project-e281d42c-a391-42b2-97b.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "project-e281d42c-a391-42b2-97b.firebasestorage.app",
+  "messagingSenderId": "228582991023",
+  "measurementId": "G-R6KFGH1JFC",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }

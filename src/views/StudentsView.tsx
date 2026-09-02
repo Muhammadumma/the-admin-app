@@ -4,15 +4,18 @@ import {
   Filter,
   Users,
   Eye,
+  Plus,
   GraduationCap,
   ChevronLeft,
   ChevronRight,
+  UserPlus,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { ProgressBar } from '../components/common/ProgressBar';
 import { EmptyState } from '../components/common/EmptyState';
-import { INITIAL_STAGES } from '../services/seedData';
+import { ClearanceStageKey } from '../types';
 
 interface StudentsViewProps {
   navigate: (route: string) => void;
@@ -23,7 +26,8 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
   navigate,
   initialStatusFilter = 'ALL',
 }) => {
-  const { students } = useData();
+  const { currentUser, isSuperAdmin, isAdmin } = useAuth();
+  const { students, stages, addStudent } = useData();
 
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('ALL');
@@ -32,6 +36,16 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
   const [stageFilter, setStageFilter] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
+
+  // New Student Enrollment Modal State
+  const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newMatric, setNewMatric] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newDept, setNewDept] = useState('Computer Science');
+  const [newLevel, setNewLevel] = useState('HND II (Final Year)');
+  const [newSession, setNewSession] = useState('2025/2026');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Extract unique departments & levels
   const departments = useMemo(() => {
@@ -43,6 +57,54 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
     const set = new Set(students.map((s) => s.level));
     return Array.from(set);
   }, [students]);
+
+  const handleEnrollStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || !newMatric.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      const initialStagesStatus: Record<ClearanceStageKey, any> = {
+        admission: 'not_started',
+        library: 'not_started',
+        faculty: 'not_started',
+        bursary: 'not_started',
+        sports: 'not_started',
+        accommodation: 'not_started',
+        student_affairs: 'not_started',
+        graduation: 'not_started',
+      };
+
+      await addStudent(
+        {
+          name: newName.trim(),
+          matricNumber: newMatric.trim().toUpperCase(),
+          email: newEmail.trim() || `${newMatric.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}@clearpass.edu.ng`,
+          departmentId: 'DEPT_' + newDept.replace(/\s+/g, '_').toUpperCase(),
+          departmentName: newDept,
+          level: newLevel,
+          session: newSession,
+          clearanceStatus: 'in_progress',
+          currentStage: 'admission',
+          progressPercent: 0,
+          stagesStatus: initialStagesStatus,
+          active: true,
+        },
+        currentUser?.uid || 'ADMIN',
+        currentUser?.name || 'Administrator',
+        currentUser?.role || 'ADMIN'
+      );
+
+      setIsEnrollModalOpen(false);
+      setNewName('');
+      setNewMatric('');
+      setNewEmail('');
+    } catch (err) {
+      console.error('Failed to enroll student:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Filter students
   const filteredStudents = useMemo(() => {
@@ -81,8 +143,19 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
             Search, inspect individual student dossiers, and track progress across all 8 clearance stages.
           </p>
         </div>
-        <div className="text-right text-xs font-bold text-slate-500 bg-white/60 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/80">
-          Total: <span className="font-mono text-slate-900 font-extrabold">{students.length}</span> students
+        <div className="flex items-center gap-3">
+          <div className="text-right text-xs font-bold text-slate-500 bg-white/60 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/80">
+            Total: <span className="font-mono text-slate-900 font-extrabold">{students.length}</span> students
+          </div>
+          {(isAdmin || isSuperAdmin) && (
+            <button
+              onClick={() => setIsEnrollModalOpen(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Enroll Student</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -169,7 +242,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
               className="w-full px-3 py-2 text-xs bg-white/60 backdrop-blur-sm border border-slate-200/80 rounded-xl focus:bg-white text-slate-700 outline-none transition font-medium capitalize"
             >
               <option value="ALL">All Current Stages</option>
-              {INITIAL_STAGES.map((st) => (
+              {stages.map((st) => (
                 <option key={st.id} value={st.id}>
                   {st.name}
                 </option>
@@ -290,6 +363,125 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Enroll Student Modal */}
+      {isEnrollModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white/95 backdrop-blur-xl rounded-2xl max-w-md w-full p-6 shadow-2xl border border-white/60">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-blue-600" />
+              Enroll New Student
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Register a student dossier directly into the Firebase clearance database.
+            </p>
+
+            <form onSubmit={handleEnrollStudent} className="mt-4 space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Full Student Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="e.g. Fatima Kabir Usman"
+                  className="w-full px-3 py-2 bg-white/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Matric Number
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newMatric}
+                    onChange={(e) => setNewMatric(e.target.value)}
+                    placeholder="e.g. JSP/CS/22/019"
+                    className="w-full px-3 py-2 bg-white/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-blue-500 outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Academic Level
+                  </label>
+                  <input
+                    type="text"
+                    value={newLevel}
+                    onChange={(e) => setNewLevel(e.target.value)}
+                    placeholder="HND II (Final Year)"
+                    className="w-full px-3 py-2 bg-white/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Department
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newDept}
+                  onChange={(e) => setNewDept(e.target.value)}
+                  placeholder="e.g. Computer Science"
+                  className="w-full px-3 py-2 bg-white/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-blue-500 outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Institutional Email (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="student@clearpass.edu.ng"
+                    className="w-full px-3 py-2 bg-white/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Academic Session
+                  </label>
+                  <input
+                    type="text"
+                    value={newSession}
+                    onChange={(e) => setNewSession(e.target.value)}
+                    placeholder="2025/2026"
+                    className="w-full px-3 py-2 bg-white/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEnrollModalOpen(false)}
+                  className="px-4 py-2 font-semibold text-slate-600 hover:bg-slate-100/70 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-xs cursor-pointer"
+                >
+                  {isSubmitting ? 'Registering...' : 'Enroll Student'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

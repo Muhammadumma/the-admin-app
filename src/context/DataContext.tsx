@@ -10,6 +10,9 @@ import {
   SystemSettings,
   ClearanceStats,
   ClearanceStageKey,
+  STAGE_ORDER,
+  STAGE_MAPPING_NUMERICAL,
+  STAGE_MAPPING_STRING,
 } from '../types';
 import {
   INITIAL_STAGES,
@@ -25,12 +28,14 @@ import { db } from '../lib/firebase';
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   updateDoc,
   deleteDoc,
   onSnapshot,
   query,
+  where,
   orderBy,
   limit,
   writeBatch,
@@ -41,6 +46,10 @@ import {
   testFirestoreConnection,
   OperationType,
 } from '../lib/firestoreUtils';
+import {
+  uploadFileToGitHub,
+  uploadDataUriToGitHub,
+} from '../services/githubStorageService';
 
 interface DataContextType {
   stages: ClearanceStage[];
@@ -75,64 +84,138 @@ interface DataContextType {
     actorName: string,
     actorRole: any
   ) => Promise<boolean>;
+  addStaffUser: (
+    staffData: Omit<StaffRecord, 'id' | 'createdAt'>,
+    actorId?: string,
+    actorName?: string,
+    actorRole?: any
+  ) => Promise<boolean>;
   toggleStaffStatus: (
     staffId: string,
-    actorId: string,
-    actorName: string,
-    actorRole: any
+    actorId?: string,
+    actorName?: string,
+    actorRole?: any
   ) => Promise<boolean>;
   addRequirement: (
     reqData: Omit<Requirement, 'id' | 'createdAt'>,
-    actorId: string,
-    actorName: string,
-    actorRole: any
+    actorId?: string,
+    actorName?: string,
+    actorRole?: any
   ) => Promise<boolean>;
   updateRequirement: (
     reqId: string,
     updates: Partial<Requirement>,
-    actorId: string,
-    actorName: string,
-    actorRole: any
+    actorId?: string,
+    actorName?: string,
+    actorRole?: any
   ) => Promise<boolean>;
   toggleRequirementActive: (
     reqId: string,
-    actorId: string,
-    actorName: string,
-    actorRole: any
+    actorId?: string,
+    actorName?: string,
+    actorRole?: any
+  ) => Promise<boolean>;
+  addStudent: (
+    studentData: Omit<StudentRecord, 'id' | 'createdAt'>,
+    actorId?: string,
+    actorName?: string,
+    actorRole?: any
+  ) => Promise<boolean>;
+  submitDocument: (
+    submissionData: Omit<SubmissionRecord, 'id' | 'submittedAt'>
   ) => Promise<boolean>;
   updateSettings: (
     newSettings: Partial<SystemSettings>,
-    actorId: string,
-    actorName: string,
-    actorRole: any
+    actorId?: string,
+    actorName?: string,
+    actorRole?: any
   ) => Promise<boolean>;
   markNotificationRead: (notifId: string) => Promise<void>;
-  resetToDemoData: (actorId: string, actorName: string, actorRole: any) => Promise<void>;
+  wipeAllSubmissions: (actorId?: string, actorName?: string, actorRole?: any) => Promise<boolean>;
+  resetToDemoData: (actorId?: string, actorName?: string, actorRole?: any) => Promise<void>;
+  resetToSeedData: (actorId?: string, actorName?: string, actorRole?: any) => Promise<void>;
   seedFirestoreIfEmpty: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [stages, setStages] = useState<ClearanceStage[]>(INITIAL_STAGES);
-  const [requirements, setRequirements] = useState<Requirement[]>(INITIAL_REQUIREMENTS);
-  const [students, setStudents] = useState<StudentRecord[]>(INITIAL_STUDENTS);
-  const [submissions, setSubmissions] = useState<SubmissionRecord[]>(INITIAL_SUBMISSIONS);
-  const [staffList, setStaffList] = useState<StaffRecord[]>(INITIAL_STAFF);
-  const [notifications, setNotifications] = useState<NotificationRecord[]>(INITIAL_NOTIFICATIONS);
-  const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>(INITIAL_AUDIT_LOGS);
+  const [stages, setStages] = useState<ClearanceStage[]>([]);
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [submissions, setSubmissions] = useState<SubmissionRecord[]>([]);
+  const [staffList, setStaffList] = useState<StaffRecord[]>([]);
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogRecord[]>([]);
   const [settings, setSettings] = useState<SystemSettings>(INITIAL_SETTINGS);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isFirestoreLive, setIsFirestoreLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Helper to populate initial Firestore collections if empty
+  // Helper to purge all mock test data (submissions & students) from Firestore
+  const purgeMockSubmissionsFromFirestore = async () => {
+    try {
+      // 1. Purge mock submissions (identified by legacy IDs or unsplash URLs)
+      const subsSnap = await getDocs(collection(db, 'submissions'));
+      if (!subsSnap.empty) {
+        const batch = writeBatch(db);
+        let count = 0;
+        subsSnap.docs.forEach((d) => {
+          const data = d.data();
+          if (
+            d.id.startsWith('sub_') ||
+            (data.fileUrl && data.fileUrl.includes('unsplash.com'))
+          ) {
+            batch.delete(d.ref);
+            count++;
+          }
+        });
+        if (count > 0) {
+          await batch.commit();
+          console.log(`Purged ${count} mock submissions from Firestore.`);
+        }
+      }
+
+      // 2. Purge mock students (std_001 through std_008)
+      const mockStudentIds = [
+        'std_001', 'std_002', 'std_003', 'std_004',
+        'std_005', 'std_006', 'std_007', 'std_008',
+      ];
+      const studBatch = writeBatch(db);
+      let studCount = 0;
+      for (const id of mockStudentIds) {
+        studBatch.delete(doc(db, 'students', id));
+        studCount++;
+      }
+      await studBatch.commit();
+      if (studCount > 0) {
+        console.log(`Purged ${studCount} mock student records from Firestore.`);
+      }
+    } catch (e) {
+      console.warn('Purge mock data note:', e);
+    }
+  };
+
+  // Helper to ensure stage matrix order and descriptions in Firestore stay in sync
+  const syncStagesToFirestore = async () => {
+    try {
+      const batch = writeBatch(db);
+      INITIAL_STAGES.forEach((stage) => {
+        batch.set(doc(db, 'clearanceStages', stage.id), stage, { merge: true });
+      });
+      await batch.commit();
+    } catch (e) {
+      console.warn('Sync stages to Firestore note:', e);
+    }
+  };
+
+  // Helper to populate initial Firestore collections if empty (stages, requirements, staff only - NO mock submissions)
   const seedFirestoreIfEmpty = async () => {
     try {
       const stagesSnap = await getDocs(collection(db, 'clearanceStages'));
       if (stagesSnap.empty) {
-        console.log('Populating initial Firestore database records...');
+        console.log('Populating initial Firestore database records (policies & staff only)...');
         const batch = writeBatch(db);
 
         // 1. Stages
@@ -145,12 +228,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           batch.set(doc(db, 'requirements', req.id), req);
         });
 
-        // 3. Students
-        INITIAL_STUDENTS.forEach((student) => {
-          batch.set(doc(db, 'students', student.id), student);
-        });
-
-        // 4. Staff
+        // 3. Administrative Staff
         INITIAL_STAFF.forEach((staff) => {
           batch.set(doc(db, 'staff', staff.id), staff);
           batch.set(doc(db, 'users', staff.id), {
@@ -166,26 +244,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         });
 
-        // 5. Submissions
-        INITIAL_SUBMISSIONS.forEach((sub) => {
-          batch.set(doc(db, 'submissions', sub.id), sub);
-        });
-
-        // 6. Notifications
-        INITIAL_NOTIFICATIONS.forEach((n) => {
-          batch.set(doc(db, 'notifications', n.id), n);
-        });
-
-        // 7. Audit Logs
-        INITIAL_AUDIT_LOGS.forEach((log) => {
-          batch.set(doc(db, 'auditLogs', log.id), log);
-        });
-
-        // 8. System Settings
+        // 4. System Settings
         batch.set(doc(db, 'systemSettings', 'global'), INITIAL_SETTINGS);
 
         await batch.commit();
-        console.log('Firestore seed commit successful.');
+        console.log('Firestore seed commit successful (0 mock submissions).');
+      } else {
+        await syncStagesToFirestore();
       }
     } catch (err) {
       console.warn('Seed Firestore error (fallback active):', err);
@@ -215,6 +280,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       try {
         await seedFirestoreIfEmpty();
+        await purgeMockSubmissionsFromFirestore();
 
         // 1. Stages listener
         unsubscribeStages = onSnapshot(
@@ -250,17 +316,80 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         );
 
-        // 3. Students listener
+        // 3. Students listener (listens to students and jsp_students)
+        const normalizeStudent = (dId: string, data: any): StudentRecord => {
+          const name = data.fullName || data.name || 'Student';
+          const matric = data.matricNumber || data.studentId || dId;
+          const stagesStatus: Record<ClearanceStageKey, any> = {
+            admission: 'not_started',
+            faculty: 'not_started',
+            bursary: 'not_started',
+            library: 'not_started',
+            sports: 'not_started',
+            student_affairs: 'not_started',
+            accommodation: 'not_started',
+            graduation: 'not_started',
+            ...(data.stagesStatus || {}),
+          };
+
+          if (Array.isArray(data.stages)) {
+            data.stages.forEach((st: any) => {
+              const key = STAGE_MAPPING_STRING[st.id || st.stageNumber];
+              if (key) {
+                if (st.status === 'COMPLETED' || st.documentStatus === 'APPROVED') {
+                  stagesStatus[key] = 'approved';
+                } else if (st.status === 'ACTION_REQUIRED' || st.documentStatus === 'REJECTED') {
+                  stagesStatus[key] = 'rejected';
+                } else if (st.status === 'PENDING' || st.documentStatus === 'PENDING_REVIEW') {
+                  stagesStatus[key] = 'pending';
+                }
+              }
+            });
+          }
+
+          const approvedCount = Object.values(stagesStatus).filter((s) => s === 'approved').length;
+          const progressPercent =
+            typeof data.progressPercent === 'number'
+              ? data.progressPercent
+              : Math.round((approvedCount / 8) * 100);
+
+          const currentIndex = STAGE_ORDER.findIndex((s) => stagesStatus[s] !== 'approved');
+          const currentStage = currentIndex === -1 ? 'graduation' : STAGE_ORDER[currentIndex];
+
+          return {
+            id: dId,
+            uid: data.uid || dId,
+            name,
+            matricNumber: matric,
+            email:
+              data.email ||
+              `${matric.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}@student.jisp.edu.ng`,
+            departmentId: data.departmentId || 'dept_1',
+            departmentName: data.department || data.departmentName || 'Computer Science',
+            level: data.level || 'ND II',
+            session: data.session || '2024/2025',
+            clearanceStatus:
+              approvedCount === 8
+                ? 'completed'
+                : data.clearanceStatus || (approvedCount > 0 ? 'in_progress' : 'not_started'),
+            currentStage,
+            progressPercent,
+            stagesStatus,
+            active: data.active !== false,
+            createdAt: data.createdAt || data.registrationDate || new Date().toISOString(),
+            phoneNumber: data.phoneNumber || data.phone,
+          };
+        };
+
         unsubscribeStudents = onSnapshot(
           collection(db, 'students'),
           (snapshot) => {
             if (!snapshot.empty) {
-              const loaded = snapshot.docs.map((d) => ({
-                id: d.id,
-                ...(d.data() as Omit<StudentRecord, 'id'>),
-              }));
+              const loaded = snapshot.docs.map((d) => normalizeStudent(d.id, d.data()));
               setStudents(loaded);
               setIsFirestoreLive(true);
+            } else {
+              setStudents([]);
             }
           },
           (err) => {
@@ -279,6 +408,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               }));
               setSubmissions(loaded);
               setIsFirestoreLive(true);
+            } else {
+              setSubmissions([]);
             }
           },
           (err) => {
@@ -318,6 +449,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               );
               setNotifications(loaded);
               setIsFirestoreLive(true);
+            } else {
+              setNotifications([]);
             }
           },
           (err) => {
@@ -407,22 +540,35 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const currentStages = stages.length > 0 ? stages : INITIAL_STAGES;
 
     currentStages.forEach((stage) => {
-      let stageCompleted = 0;
-      let stagePending = 0;
-      let stageRejected = 0;
+      const stageSubs = submissions.filter((s) => s.stageId === stage.id);
+      const subPending = stageSubs.filter((s) => s.status === 'pending').length;
+      const subApproved = stageSubs.filter((s) => s.status === 'approved').length;
+      const subRejected = stageSubs.filter((s) => s.status === 'rejected').length;
+
+      let stdCompleted = 0;
+      let stdPending = 0;
+      let stdRejected = 0;
 
       students.forEach((student) => {
         const st = student.stagesStatus?.[stage.id as ClearanceStageKey];
-        if (st === 'approved') stageCompleted++;
-        else if (st === 'pending') stagePending++;
-        else if (st === 'rejected') stageRejected++;
+        if (st === 'approved') stdCompleted++;
+        else if (st === 'pending') stdPending++;
+        else if (st === 'rejected') stdRejected++;
       });
 
+      const stagePending = Math.max(subPending, stdPending);
+      const stageCompleted = Math.max(subApproved, stdCompleted);
+      const stageRejected = Math.max(subRejected, stdRejected);
+
+      const totalEffective = Math.max(
+        totalStudents,
+        stagePending + stageCompleted + stageRejected
+      );
       const completionRate =
-        totalStudents > 0 ? Math.round((stageCompleted / totalStudents) * 100) : 0;
+        totalEffective > 0 ? Math.round((stageCompleted / totalEffective) * 100) : 0;
 
       stageStats[stage.id as ClearanceStageKey] = {
-        total: totalStudents,
+        total: totalEffective,
         completed: stageCompleted,
         pending: stagePending,
         rejected: stageRejected,
@@ -457,6 +603,145 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Helper to cross-sync review status to student portal collections (jsp_documents and jsp_clearance_records)
+  const crossSyncReviewToStudentPortal = async (
+    targetSub: SubmissionRecord,
+    isApproved: boolean,
+    reviewerName: string,
+    comment?: string,
+    reason?: string
+  ) => {
+    const now = new Date().toISOString();
+    const numStageId = STAGE_MAPPING_NUMERICAL[targetSub.stageId] || 1;
+
+    // 1. Cross-sync to jsp_documents
+    try {
+      const directDocRef = doc(db, 'jsp_documents', targetSub.id);
+      const directDocSnap = await getDoc(directDocRef);
+      if (directDocSnap.exists()) {
+        await updateDoc(directDocRef, {
+          status: isApproved ? 'APPROVED' : 'REJECTED',
+          remarks: comment || reason || (isApproved ? 'Verified and Approved' : 'Rejected'),
+          rejectionReason: !isApproved ? reason || comment : null,
+          reviewedAt: now,
+          reviewedBy: reviewerName,
+        });
+      }
+
+      const qUid = query(
+        collection(db, 'jsp_documents'),
+        where('studentUid', '==', targetSub.studentId)
+      );
+      const snapUid = await getDocs(qUid);
+      for (const d of snapUid.docs) {
+        const dData = d.data();
+        if (dData.stageId === numStageId || dData.stageTitle === targetSub.stageName) {
+          await updateDoc(d.ref, {
+            status: isApproved ? 'APPROVED' : 'REJECTED',
+            remarks: comment || reason || (isApproved ? 'Verified and Approved' : 'Rejected'),
+            rejectionReason: !isApproved ? reason || comment : null,
+            reviewedAt: now,
+            reviewedBy: reviewerName,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('jsp_documents cross-update note:', e);
+    }
+
+    // 2. Cross-sync to jsp_clearance_records
+    try {
+      const possibleKeys = Array.from(
+        new Set(
+          [
+            targetSub.studentId,
+            targetSub.matricNumber,
+            targetSub.matricNumber?.replace(/\//g, '_'),
+          ].filter(Boolean)
+        )
+      );
+
+      for (const docKey of possibleKeys) {
+        const recRef = doc(db, 'jsp_clearance_records', docKey);
+        const recSnap = await getDoc(recRef);
+        if (recSnap.exists()) {
+          const recData = recSnap.data();
+          let stages = Array.isArray(recData.stages) ? [...recData.stages] : [];
+
+          stages = stages.map((st: any) => {
+            if (st.id === numStageId || st.stageNumber === numStageId) {
+              return {
+                ...st,
+                status: isApproved ? 'COMPLETED' : 'ACTION_REQUIRED',
+                documentStatus: isApproved ? 'APPROVED' : 'REJECTED',
+                approvalDate: isApproved ? new Date(now).toLocaleDateString() : null,
+                rejectionReason: !isApproved
+                  ? reason || comment || 'Document requires re-submission'
+                  : null,
+                isActionRequired: !isApproved,
+                actionButtonText: !isApproved ? 'Re-upload Now' : null,
+              };
+            }
+            if (
+              isApproved &&
+              (st.id === numStageId + 1 || st.stageNumber === numStageId + 1) &&
+              st.status === 'LOCKED'
+            ) {
+              return {
+                ...st,
+                status: 'READY',
+                actionButtonText: 'Start Clearance',
+              };
+            }
+            return st;
+          });
+
+          const completedCount = stages.filter((s: any) => s.status === 'COMPLETED').length;
+          const isFullyCleared = completedCount === 8;
+
+          const activities = Array.isArray(recData.activities) ? [...recData.activities] : [];
+          activities.unshift({
+            id: 'act_' + Date.now(),
+            title: `${targetSub.stageName} ${isApproved ? 'Approved' : 'Rejected'}`,
+            description: `${isApproved ? 'Verified' : 'Rejected'} by clearance officer ${reviewerName}. ${comment || reason || ''}`.trim(),
+            timeAgo: 'Just now',
+            status: isApproved ? 'COMPLETED' : 'ACTION_REQUIRED',
+            stageId: numStageId,
+          });
+
+          const alerts = Array.isArray(recData.alerts) ? [...recData.alerts] : [];
+          alerts.unshift({
+            id: 'alt_' + Date.now(),
+            title: `${targetSub.stageName} Clearance ${isApproved ? 'Approved' : 'Action Required'}`,
+            description: isApproved
+              ? `Your ${targetSub.requirementName} has been verified and approved by ${reviewerName}.`
+              : `Your ${targetSub.requirementName} was rejected: ${reason || comment}. Please re-upload.`,
+            timeAgo: 'Just now',
+            isUrgent: !isApproved,
+            isRead: false,
+            stageId: numStageId,
+          });
+
+          await setDoc(
+            recRef,
+            {
+              stages,
+              completedCount,
+              isFullyCleared,
+              activities: activities.slice(0, 30),
+              alerts: alerts.slice(0, 30),
+              lastUpdated: now,
+              timestamp: Date.now(),
+            },
+            { merge: true }
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('jsp_clearance_records cross-update note:', e);
+    }
+  };
+
   // 1. Approve Submission Workflow
   const approveSubmission = async (
     submissionId: string,
@@ -474,7 +759,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         reviewedAt: now,
         reviewedBy: reviewerId,
         reviewerName,
-        reviewComment: comment || 'Document verified and approved.',
+        reviewComment: comment || 'Document verified and approved on Remita ledger.',
       };
 
       // 1. Update submission in Firestore
@@ -484,7 +769,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         handleFirestoreError(err, OperationType.UPDATE, `submissions/${submissionId}`);
       }
 
-      // 2. Update Student stage status & progress
+      // 2. Cross-sync to Student Portal records (jsp_documents & jsp_clearance_records)
+      await crossSyncReviewToStudentPortal(targetSub, true, reviewerName, comment);
+
+      // 3. Update Student stage status & progress
       const studentId = targetSub.studentId;
       const stageId = targetSub.stageId;
       const targetStudent = students.find((s) => s.id === studentId);
@@ -501,21 +789,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const progressPercent = Math.round((approvedCount / 8) * 100);
         const isAllCompleted = approvedCount === 8;
 
-        const stageOrder: ClearanceStageKey[] = [
-          'admission',
-          'library',
-          'faculty',
-          'bursary',
-          'sports',
-          'accommodation',
-          'student_affairs',
-          'graduation',
-        ];
-        const currentIndex = stageOrder.indexOf(stageId);
+        const currentIndex = STAGE_ORDER.indexOf(stageId);
         const nextStage =
-          currentIndex < stageOrder.length - 1
-            ? stageOrder[currentIndex + 1]
-            : stageOrder[stageOrder.length - 1];
+          currentIndex < STAGE_ORDER.length - 1
+            ? STAGE_ORDER[currentIndex + 1]
+            : STAGE_ORDER[STAGE_ORDER.length - 1];
 
         const updatedStudentData = {
           stagesStatus: updatedStagesStatus,
@@ -531,7 +809,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
-      // 3. Create Student Notification in Firestore
+      // 4. Create Student Notification in Firestore
       const notifId = 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
       const newNotif: NotificationRecord = {
         id: notifId,
@@ -549,7 +827,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.warn('Notification write error:', err);
       }
 
-      // 4. Record Audit Log
+      // 5. Record Audit Log
       await addAuditLogInDb({
         actorId: reviewerId,
         actorName: reviewerName,
@@ -603,7 +881,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         handleFirestoreError(err, OperationType.UPDATE, `submissions/${submissionId}`);
       }
 
-      // 2. Update student stage status in Firestore
+      // 2. Cross-sync to Student Portal records (jsp_documents & jsp_clearance_records)
+      await crossSyncReviewToStudentPortal(targetSub, false, reviewerName, comment, reason);
+
+      // 3. Update student stage status in Firestore
       const targetStudent = students.find((s) => s.id === targetSub.studentId);
       if (targetStudent) {
         const updatedStudentData = {
@@ -619,7 +900,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
-      // 3. Create Student Notification
+      // 4. Create Student Notification
       const notifId = 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
       const newNotif: NotificationRecord = {
         id: notifId,
@@ -637,7 +918,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.warn('Notification write error:', err);
       }
 
-      // 4. Record Audit Log
+      // 5. Record Audit Log
       await addAuditLogInDb({
         actorId: reviewerId,
         actorName: reviewerName,
@@ -976,6 +1257,250 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Wipe all mock submissions from database
+  const wipeAllSubmissions = async (
+    actorId?: string,
+    actorName?: string,
+    actorRole?: any
+  ): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      const subsSnap = await getDocs(collection(db, 'submissions'));
+      const batch = writeBatch(db);
+      subsSnap.docs.forEach((d) => {
+        batch.delete(d.ref);
+      });
+      await batch.commit();
+
+      setSubmissions([]);
+
+      await addAuditLogInDb({
+        actorId: actorId || 'ADMIN',
+        actorName: actorName || 'Administrator',
+        actorRole: actorRole || 'SUPER_ADMIN',
+        action: 'DATABASE_INITIALIZED',
+        targetType: 'SYSTEM',
+        targetId: 'submissions',
+        metadata: { note: 'Purged mock submissions. Clean live database state active.' },
+      });
+      return true;
+    } catch (e) {
+      console.error('Wipe submissions error:', e);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 6. Student Registration & Sync
+  const addStudent = async (
+    studentData: Omit<StudentRecord, 'id' | 'createdAt'>,
+    actorId?: string,
+    actorName?: string,
+    actorRole?: any
+  ): Promise<boolean> => {
+    try {
+      const studentId = 'std_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      const newStudent: StudentRecord = {
+        ...studentData,
+        id: studentId,
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        await setDoc(doc(db, 'students', studentId), newStudent);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, `students/${studentId}`);
+      }
+
+      await addAuditLogInDb({
+        actorId: actorId || 'ADMIN',
+        actorName: actorName || 'Administrator',
+        actorRole: actorRole || 'ADMIN',
+        action: 'DATABASE_INITIALIZED',
+        targetType: 'STUDENT',
+        targetId: studentId,
+        metadata: {
+          name: newStudent.name,
+          matricNumber: newStudent.matricNumber,
+          department: newStudent.departmentName,
+        },
+      });
+
+      return true;
+    } catch (e) {
+      console.error('Add student error:', e);
+      return false;
+    }
+  };
+
+  // 7. Student Document Submission & Sync (Supports GitHub Storage & Free Tier Direct Sync)
+  const submitDocument = async (
+    submissionData: Omit<SubmissionRecord, 'id' | 'submittedAt'>
+  ): Promise<boolean> => {
+    try {
+      // 1. Upload to GitHub Storage CDN if it's a Data URL
+      let finalFileUrl = submissionData.fileUrl;
+      if (submissionData.fileUrl && submissionData.fileUrl.startsWith('data:')) {
+        try {
+          const ghResult = await uploadDataUriToGitHub(
+            submissionData.fileUrl,
+            submissionData.fileName,
+            submissionData.studentId,
+            submissionData.stageId
+          );
+          if (ghResult?.downloadUrl) {
+            finalFileUrl = ghResult.downloadUrl;
+          }
+        } catch (ghErr) {
+          console.warn('GitHub upload fallback to Data URI:', ghErr);
+        }
+      }
+
+      const subId = 'sub_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      const now = new Date().toISOString();
+      const newSub: SubmissionRecord = {
+        ...submissionData,
+        fileUrl: finalFileUrl,
+        id: subId,
+        submittedAt: now,
+      };
+
+      // 2. Write to submissions collection
+      try {
+        await setDoc(doc(db, 'submissions', subId), newSub);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, `submissions/${subId}`);
+      }
+
+      // 3. Cross-write to jsp_documents
+      const numStageId = STAGE_MAPPING_NUMERICAL[newSub.stageId] || 1;
+      try {
+        await setDoc(doc(db, 'jsp_documents', subId), {
+          id: subId,
+          studentUid: newSub.studentId,
+          matricNumber: newSub.matricNumber,
+          stageId: numStageId,
+          stageTitle: newSub.stageName,
+          documentType: newSub.requirementName,
+          fileName: newSub.fileName,
+          fileUri: newSub.fileUrl,
+          hasAttachment: true,
+          status: 'PENDING_REVIEW',
+          remarks: 'Submitted for verification',
+          uploadDate: now,
+          createdAt: Date.now(),
+        });
+      } catch (e) {
+        console.warn('jsp_documents write note:', e);
+      }
+
+      // 4. Update student's stage status in students collection
+      try {
+        const studentDoc = doc(db, 'students', newSub.studentId);
+        await updateDoc(studentDoc, {
+          [`stagesStatus.${newSub.stageId}`]: 'pending',
+          clearanceStatus: 'in_progress',
+        });
+      } catch (err) {
+        console.warn('Update student stage status error on submit:', err);
+      }
+
+      // 5. Cross-sync to jsp_clearance_records
+      try {
+        const docKeys = [
+          newSub.studentId,
+          newSub.matricNumber,
+          newSub.matricNumber?.replace(/\//g, '_'),
+        ].filter(Boolean);
+
+        for (const docKey of docKeys) {
+          const recRef = doc(db, 'jsp_clearance_records', docKey);
+          const recSnap = await getDoc(recRef);
+          if (recSnap.exists()) {
+            const recData = recSnap.data();
+            let stages = Array.isArray(recData.stages) ? [...recData.stages] : [];
+
+            stages = stages.map((st: any) => {
+              if (st.id === numStageId || st.stageNumber === numStageId) {
+                return {
+                  ...st,
+                  status: 'PENDING',
+                  documentStatus: 'PENDING_REVIEW',
+                  documentName: newSub.fileName,
+                  isActionRequired: false,
+                  actionButtonText: 'Awaiting Officer Review',
+                };
+              }
+              return st;
+            });
+
+            const activities = Array.isArray(recData.activities) ? [...recData.activities] : [];
+            activities.unshift({
+              id: 'act_' + Date.now(),
+              title: `${newSub.stageName} Document Submitted`,
+              description: `Uploaded ${newSub.requirementName} for verification.`,
+              timeAgo: 'Just now',
+              status: 'PENDING',
+              stageId: numStageId,
+            });
+
+            await setDoc(
+              recRef,
+              {
+                stages,
+                activities: activities.slice(0, 30),
+                lastUpdated: now,
+                timestamp: Date.now(),
+              },
+              { merge: true }
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('jsp_clearance_records write note:', e);
+      }
+
+      // 6. Notify reviewing staff
+      const notifId = 'notif_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+      try {
+        await setDoc(doc(db, 'notifications', notifId), {
+          id: notifId,
+          studentId: newSub.studentId,
+          title: `New ${newSub.stageName} Submission`,
+          message: `${newSub.studentName} (${newSub.matricNumber}) uploaded ${newSub.requirementName} [${Math.round(newSub.fileSize / 1024)} KB].`,
+          type: 'submission',
+          read: false,
+          createdAt: now,
+        });
+      } catch (e) {}
+
+      // 7. Record Audit Log
+      await addAuditLogInDb({
+        actorId: newSub.studentId,
+        actorName: newSub.studentName,
+        actorRole: 'STUDENT',
+        action: 'DOCUMENT_SUBMITTED',
+        targetType: 'SUBMISSION',
+        targetId: subId,
+        metadata: {
+          studentName: newSub.studentName,
+          matricNumber: newSub.matricNumber,
+          stage: newSub.stageName,
+          requirement: newSub.requirementName,
+          fileSizeKb: Math.round(newSub.fileSize / 1024),
+          fileName: newSub.fileName,
+        },
+      });
+
+      return true;
+    } catch (e: any) {
+      console.error('Document submission error:', e);
+      alert(e.message || 'Failed to submit document. Please check file and network connection.');
+      return false;
+    }
+  };
+
   return (
     <DataContext.Provider
       value={{
@@ -994,13 +1519,18 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         approveSubmission,
         rejectSubmission,
         addStaff,
+        addStaffUser: addStaff,
         toggleStaffStatus,
         addRequirement,
         updateRequirement,
         toggleRequirementActive,
+        addStudent,
+        submitDocument,
         updateSettings,
         markNotificationRead,
+        wipeAllSubmissions,
         resetToDemoData,
+        resetToSeedData: resetToDemoData,
         seedFirestoreIfEmpty,
       }}
     >
