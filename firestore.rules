@@ -56,6 +56,19 @@ service cloud.firestore {
     match /systemSettings/{settingId} {
       allow read, write: if true;
     }
+
+    // JSP Student Portal Collections
+    match /jsp_students/{studentId} {
+      allow read, write: if true;
+    }
+
+    match /jsp_clearance_records/{recordId} {
+      allow read, write: if true;
+    }
+
+    match /jsp_documents/{documentId} {
+      allow read, write: if true;
+    }
   }
 }
 
