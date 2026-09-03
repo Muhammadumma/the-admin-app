@@ -1,9 +1,25 @@
 $OWNER = "Muhammadumma"
 $REPO = "the-admin-app"
 $BRANCH = "main"
-$TOKEN = "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"
 $BASE_DIR = "c:\Users\IMASS\theadmin\the-admin-app-main"
 $WEB_DIR = "c:\Users\IMASS\.gemini\antigravity-ide\scratch\the-webapp"
+
+# Load token: 1) System env var, 2) Admin app .env, 3) Webapp .env
+$TOKEN = $env:GITHUB_TOKEN
+if (-not $TOKEN -and (Test-Path "$BASE_DIR\.env")) {
+    $tokenLine = Get-Content "$BASE_DIR\.env" | Where-Object { $_ -match '^VITE_GITHUB_TOKEN=(.+)' }
+    if ($tokenLine) { $TOKEN = $Matches[1].Trim() }
+}
+if (-not $TOKEN -and (Test-Path "$WEB_DIR\.env")) {
+    $tokenLine = Get-Content "$WEB_DIR\.env" | Where-Object { $_ -match '^VITE_GITHUB_TOKEN=(.+)' }
+    if ($tokenLine) { $TOKEN = $Matches[1].Trim() }
+}
+
+if (-not $TOKEN) {
+    Write-Error "ERROR: GitHub Token not found. Set GITHUB_TOKEN env var or add VITE_GITHUB_TOKEN to $BASE_DIR\.env"
+    exit 1
+}
+
 $HEADERS = @{
     "Authorization" = "Bearer $TOKEN"
     "Accept" = "application/vnd.github+json"

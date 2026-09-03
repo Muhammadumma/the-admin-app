@@ -142,6 +142,8 @@ export interface SubmissionRecord {
     rejectedAt: string;
     reviewerName: string;
   }>;
+  templateJson?: string;
+  templateType?: string;
 }
 
 export interface NotificationRecord {
