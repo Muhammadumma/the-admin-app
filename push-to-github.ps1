@@ -1,7 +1,7 @@
 $OWNER = "Muhammadumma"
 $REPO = "the-admin-app"
 $BRANCH = "main"
-$TOKEN = "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"
+$TOKEN = "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"
 $BASE_DIR = "c:\Users\IMASS\theadmin\the-admin-app-main"
 $WEB_DIR = "c:\Users\IMASS\.gemini\antigravity-ide\scratch\the-webapp"
 $HEADERS = @{
